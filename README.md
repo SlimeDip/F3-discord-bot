@@ -10,10 +10,7 @@ This is a Discord bot made for random everyday thingies. It has features like:
 
 ## Table of Contents
 1. [Features](#features)
-2. [Usage](#usage)
-   - [x up System](#xup-system)
-   - [Random Image Sender](#random-image-sender)
-3. [Commands](#commands)
+2. [Commands](#commands)
 
 ---
 
