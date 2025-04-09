@@ -5,6 +5,8 @@ This is a Discord bot made for random everyday thingies. It has features like:
 - Coinflip
 - Isaw ni pinsan by Majol Abunis
 - Picture of wonhee (Requested by Kurto-san)
+- Friend rating system
+- "Scatter" game for fun
 
 ---
 
@@ -28,8 +30,15 @@ This is a Discord bot made for random everyday thingies. It has features like:
   - A masterpiece by Majol Abunis.
 
 - **Random Wonhee**:
-  - The bot can send a random image of Wonhee from a predefined list when triggered by a command.
+  - The bot will send a random image of Wonhee from a predefined list when triggered by a command.
   - I dont want to do this but Kurto-san wants it.
+
+- **Rating system**:
+  - The bot will send a random rating of someone you mentioned.
+  - it can be harsh.
+
+- **Scatter**:
+  - The bot will simulate a simple game of "Scatter".
 
 ---
 
@@ -42,6 +51,8 @@ This is a Discord bot made for random everyday thingies. It has features like:
 | `f3cf`           | Coin flip.                               |
 | `f3abunis`       | Writes a masterpiece.                    |
 | `f3wonhee`       | Sends a random image of Wonhee.          |
+| `f3rate`         | Rate your friends                        |
+| `f3scatter`      | Simulate "Scatter" game.                 |
 
 ---
 
