@@ -100,6 +100,51 @@ async def wonhee(message):
     file = discord.File(image_path)
     await message.channel.send(file=file)
 
+# f3rate
+async def rate(message):
+    if len(message.mentions) == 0:
+        await message.channel.send("Pls mention someone to rate")
+        return
+    
+    user = message.mentions[0]
+    ratings = random.randrange(0,11)
+
+    bad_comments = [
+        "Medyo burat.",
+        "Mukhang bisaya.",
+        "Bisakol masyado.",
+        "Eto na yon?",
+        "Di ko trip eh.",
+        "No comment nalang.",
+        "Haup na badtrip ako bigla."]
+    
+    good_comments = [
+        "Pwede na.",
+        "Masarap kahit walang ulam.",
+        "Napaka angas.",
+        "Krazy masyado."]
+
+    if ratings < 7:
+        comment = random.choice(bad_comments)
+    else:
+        comment = random.choice(good_comments)
+
+    await message.channel.send(f"{user.mention} is {ratings}/10. {comment}")
+
+# f3scatter
+async def scatter(message):
+    scatter = ""
+    for i in range(4):
+        for j in range(5):
+            scatter += random.choices(["#", "S"], weights=[90, 10])[0] + " "
+        scatter += "\n"
+    await message.channel.send(scatter)
+
+    if scatter.count("S") >= 3:
+        await message.channel.send("Paldogs")
+    else:
+        await message.channel.send("Eguls")
+
 # Features
 @bot.event
 async def on_ready():
@@ -120,14 +165,15 @@ async def on_message(message):
             "***f3ml*** - launch ml x up thread\n"
             "***f3cf*** - coin flip\n"
             "***f3abunis*** - isaw ni pinsan\n"
-            "***f3wonhee*** - made for kurto"
+            "***f3wonhee*** - made for kurto\n"
+            "***f3rate <mention>*** - rate someone"
+            "***f3scatter*** - sugal na scatter"
             )
 
     # f3ml
     if msg.strip() == "f3ml":
         await handle_fml(message)
         return
-    # f3ml in thread
     if blame_thread and message.channel.id == blame_thread.id:
         await xup(message)
 
@@ -145,10 +191,19 @@ async def on_message(message):
     if msg.strip() == "f3wonhee":
         await wonhee(message)
         return
+    
+    # f3rate
+    if msg.startswith("f3rate"):
+        await rate(message)
+        return
+    
+    # f3scatter
+    if msg.strip() == "f3scatter":
+        await scatter(message)
+        return
+    
 
     await bot.process_commands(message)
-
-    # other upcoming features goes here
 
 # run
 bot.run(TOKEN)
