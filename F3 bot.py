@@ -166,7 +166,7 @@ async def on_message(message):
             "***f3cf*** - coin flip\n"
             "***f3abunis*** - isaw ni pinsan\n"
             "***f3wonhee*** - made for kurto\n"
-            "***f3rate <mention>*** - rate someone"
+            "***f3rate <mention>*** - rate someone\n"
             "***f3scatter*** - sugal na scatter"
             )
 
