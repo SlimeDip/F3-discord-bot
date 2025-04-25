@@ -7,6 +7,8 @@ This is a Discord bot made for random everyday thingies. It has features like:
 - Picture of wonhee (Requested by Kurto-san)
 - Friend rating system
 - "Scatter" game for fun
+- Casino slots
+- Character gacha
 
 ---
 
@@ -40,6 +42,12 @@ This is a Discord bot made for random everyday thingies. It has features like:
 - **Scatter**:
   - The bot will simulate a simple game of "Scatter".
 
+- **Slots**:
+  - Traditional casino slots.
+
+- **Gacha**:
+  - A gacha-inspired feature where characters have unique rarity and drop rates.
+
 ---
 
 ## Commands
@@ -53,6 +61,8 @@ This is a Discord bot made for random everyday thingies. It has features like:
 | `f3wonhee`       | Sends a random image of Wonhee.          |
 | `f3rate`         | Rate your friends                        |
 | `f3scatter`      | Simulate "Scatter" game.                 |
+| `f3slots`        | Casino slots                             |
+| `f3gacha`        | Simple character gacha                   |
 
 ---
 
