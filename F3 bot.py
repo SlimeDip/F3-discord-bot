@@ -11,7 +11,7 @@ intents.messages = True
 intents.guild_messages = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Tracker for f3ml
+# f3ml
 tracker = {
     "core": "",
     "exp": "",
@@ -23,64 +23,80 @@ tracker = {
 blame_message = None
 blame_thread = None
 
-# x up list
 def format_board():
     return "\n".join(
         f"{role}: {tracker[role] if tracker[role] else ''}"
         for role in tracker
     )
 
-# When someone x up
+async def shuffle_roles():
+    assigned_players = [tracker[role] for role in tracker if tracker[role]]
+    
+    random.shuffle(assigned_players)
+    
+    i = 0
+    for role in tracker:
+        if tracker[role]:
+            tracker[role] = assigned_players[i]
+            i += 1
+
+async def handle_fml(message):
+    global blame_message, blame_thread
+    
+    if "f3ml" in message.content.lower():
+        tracker.update({role: "" for role in tracker})
+    
+    if blame_message:
+        await blame_message.edit(content=f"@everyone EMLEM!!!!!:\n\n{format_board()}")
+    else:
+        blame_message = await message.channel.send(f"@everyone EMLEM!!!!!:\n\n{format_board()}")
+        blame_thread = await blame_message.create_thread(
+            name="Emlem X-UP",
+            auto_archive_duration=60
+        )
+        await blame_thread.send("Assign roles here by typing `x core`, `x exp`, etc. `x (role) out` to out. `shuffle` to randomize roles.")
+
 async def xup(message):
     global blame_message
-
+    
+    if blame_thread and message.channel.id != blame_thread.id:
+        return
+        
     msg = message.content.lower()
     updated = False
-
-    user_has_role = False
+    
     current_role = None
     for role in tracker:
         if tracker[role] == message.author.mention:
-            user_has_role = True
             current_role = role
             break
-
+    
     for role in tracker:
         if f"x {role}" in msg:
-            if tracker[role] == "": 
-                if user_has_role:
-                    tracker[current_role] = "" 
+            if tracker[role] == "":
+                if current_role:
+                    tracker[current_role] = ""
                 tracker[role] = message.author.mention
                 updated = True
-
+    
     for role in tracker:
         if f"x {role} out" in msg:
             if message.author.mention == tracker[role]:
                 tracker[role] = ""
                 updated = True
                 break
-
-    if blame_message and updated:
+    
+    if msg == "shuffle":
+        await shuffle_roles()
+        updated = True
+    
+    if updated and blame_message:
         await blame_message.edit(content=f"@everyone EMLEM!!!!!:\n\n{format_board()}")
-
-# f3ml
-async def handle_fml(message):
-    global blame_message, blame_thread
-
-    tracker.update({role: "" for role in tracker})
-
-    blame_message = await message.channel.send(f"@everyone EMLEM!!!!!:\n\n{format_board()}")
-
-    blame_thread = await blame_message.create_thread(
-        name="Emlem X-UP",
-        auto_archive_duration=60
-    )
-    await blame_thread.send("Assign roles here by typing `x core`, `x exp`, etc. `x (role) out` to out.")
 
 # f3cf
 async def coinflip(message):
     result = random.choice(["Heads", "Tails"])
-    await message.channel.send(f"🎲 Coin flip result: **{result}**!")
+    await message.channel.send(f":coin: Coin flip result: **{result}**!")
 
 # f3abunis
 async def abunis(message):
@@ -136,14 +152,60 @@ async def scatter(message):
     scatter = ""
     for i in range(4):
         for j in range(5):
-            scatter += random.choices(["#", "S"], weights=[90, 10])[0] + " "
+            scatter += random.choices([":diamonds:", ":coin:"], weights=[90, 10])[0] + " "
         scatter += "\n"
     await message.channel.send(scatter)
 
-    if scatter.count("S") >= 3:
+    if scatter.count(":coin:") >= 3:
         await message.channel.send("Paldogs")
     else:
         await message.channel.send("Eguls")
+
+# f3slots
+async def slot(message):
+    slots = []
+    for i in range(3):
+        slots.append(random.choices([":gem:", ":cherries:", ":bell:", ":seven:"])[0])
+    await message.channel.send(" ".join(slots))
+
+    if len(set(slots)) == 1:
+        await message.channel.send("Paldogs")
+    else:
+        await message.channel.send("Eguls")
+
+async def gacha(message):
+    character = random.choices(
+        [":detective:", 
+        ":health_worker:", 
+        ":man_police_officer:", 
+        ":judge:", 
+        ":man_supervillain:", 
+        ":man_mage:", 
+        ":factory_worker:", 
+        ":person_in_tuxedo:"], 
+        weights=[5, 20, 20, 20, 5, 5, 5, 20])[0]
+
+    rarity = {":detective:":5, 
+            ":health_worker:":4, 
+            ":man_police_officer:":4,
+            ":judge:":4, 
+            ":man_supervillain:":5, 
+            ":man_mage:":5, 
+            ":factory_worker:":5,
+            ":person_in_tuxedo:":4}
+
+    msggg = await message.channel.send(":sparkles:")
+    time.sleep(0.5)
+    await msggg.edit(content=":sparkles: :sparkles:")
+    time.sleep(0.5)
+    await msggg.edit(content=":sparkles: :sparkles: :sparkles:")
+    time.sleep(0.5)
+    if rarity[character] == 5:
+        await msggg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
+        time.sleep(0.5)
+    await msggg.edit(content=character)
+    await message.channel.send(f"{rarity[character]} star character")
+
 
 # Features
 @bot.event
@@ -167,7 +229,9 @@ async def on_message(message):
             "***f3abunis*** - isaw ni pinsan\n"
             "***f3wonhee*** - made for kurto\n"
             "***f3rate <mention>*** - rate someone\n"
-            "***f3scatter*** - sugal na scatter"
+            "***f3scatter*** - sugal na scatter\n"
+            "***f3slots*** - casino slots\n"
+            "***f3gacha*** - character gacha"
             )
 
     # f3ml
@@ -200,6 +264,16 @@ async def on_message(message):
     # f3scatter
     if msg.strip() == "f3scatter":
         await scatter(message)
+        return
+
+    # f3slots
+    if msg.strip() == "f3slots":
+        await slot(message)
+        return
+    
+    # f3gacha
+    if msg.strip() == "f3gacha":
+        await gacha(message)
         return
     
 
