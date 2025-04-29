@@ -1,5 +1,8 @@
 # F3 Discord Bot
 
+## What is F3 / Fairy Forest Faction?
+Its a made up group for fun
+
 This is a Discord bot made for random everyday thingies. It has features like:
 - ML x up thread generator
 - Coinflip
