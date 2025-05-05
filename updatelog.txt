@@ -5,7 +5,7 @@ UPDATE 1.0 (4/9/2025)
 3. f3gacha - character gacha
 
 UPDATE 2.0
---- New Featurse ---
+--- New Features ---
 1. f3slots - casino slots cuz they like gambling
 2. f3gacha - character gacha (might fix later)
 --- Other ---
@@ -14,7 +14,7 @@ UPDATE 2.0
 3. change coinflip emoji from dice to coin
 
 UPDATE 3.0
---- New Featurse ---
+--- New Features ---
 1. f3abunis (rework) - Now joins voice chat to play isaw ni pinsan
 2. f3r/<subreddit> - Fetches random post from the given subreddit
 --- Other ---
