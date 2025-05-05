@@ -1,0 +1,22 @@
+UPDATE 1.0 (4/9/2025)
+--- New Features ---
+1. f3rate - rate someone
+2. f3scatter - scatter sugal
+3. f3gacha - character gacha
+
+UPDATE 2.0
+--- New Featurse ---
+1. f3slots - casino slots cuz they like gambling
+2. f3gacha - character gacha (might fix later)
+--- Other ---
+1. change f3scatter from text to emojis
+2. f3ml new shuffle - shuffles the role for fun
+3. change coinflip emoji from dice to coin
+
+UPDATE 3.0
+--- New Featurse ---
+1. f3abunis (rework) - Now joins voice chat to play isaw ni pinsan
+2. f3r/<subreddit> - Fetches random post from the given subreddit
+--- Other ---
+1. bug fixes
+2. implemented .env and .venv
