@@ -14,12 +14,14 @@ This is a Discord bot made for random everyday thingies. It has features like:
 - "Scatter" game for fun
 - Casino slots
 - Character gacha
+- Reddit post scraper
 
 ---
 
 ## Table of Contents
 1. [Features](#features)
 2. [Commands](#commands)
+3. [Setup](#setup)
 
 ---
 
@@ -53,6 +55,9 @@ This is a Discord bot made for random everyday thingies. It has features like:
 - **Gacha**:
   - A gacha-inspired feature where characters have unique rarity and drop rates.
 
+- **Reddit Scraper**:
+  - Automaticaly fetch a random post from a subreddit
+
 ---
 
 ## Commands
@@ -68,7 +73,14 @@ This is a Discord bot made for random everyday thingies. It has features like:
 | `f3scatter`      | Simulate "Scatter" game.                 |
 | `f3slots`        | Casino slots                             |
 | `f3gacha`        | Simple character gacha                   |
+| `f3r/<subreddit>`| Fetches a random post from a subreddit.  |
 
 ---
 
-Enjoy using the bot! 🎉
+## Setup
+
+### Prerequisites
+1. Install Python 3.8 or higher.
+2. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
