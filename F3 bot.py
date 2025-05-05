@@ -1,15 +1,34 @@
 import discord
 import random
+import time
+import os
+import asyncio
+import asyncpraw
+import requests
+import io
 from discord.ext import commands
+from discord.utils import get
+from dotenv import load_dotenv
+
 
 # Config
-TOKEN = ""
+load_dotenv()
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+USER_AGENT = os.getenv("USER_AGENT")
 intents = discord.Intents.default()
 intents.guilds = True
 intents.message_content = True
 intents.messages = True
 intents.guild_messages = True
+intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+REDDIT = asyncpraw.Reddit(
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    user_agent=USER_AGENT,
+)
 
 # f3ml
 tracker = {
@@ -100,19 +119,33 @@ async def coinflip(message):
 
 # f3abunis
 async def abunis(message):
-    await message.channel.send(
-        "Isaw ni pinsan\n\nIsang hapon sa bahay ng aking pinsan. Naisip namin na kumain ng barbeque, "
-        "saktong sakto katapat ng bahay nila ang tindahan nito. Agad nilang tinanong kung sa shortcut o "
-        "sa longcut kami dadaan, syempre sa shortcut tayo, ang sagot ko. Aking nilista ang aming bibilhin. "
-        "Nang kami ay papunta na, aking naisip na mas matagal ang shortcut dahil kami ay umakyat pa sa bundok, "
-        "na kung ikukumpara sa longcut na patag at hindi nakaka pagod ang daan. Pagkadating namin agad naming "
-        "pinaluto ang aming bibilhin. Dahil kami ay nagiintay napagkwentuhan namin ang magandang aso ng tindera. "
-        "Pagkaluto ng aming barbeque kamiy handa na sa pag uwi sabay sabi ng isa naming pinsan na, pabili po ng isang isaw.")
+    if message.author.voice is None:
+        await message.channel.send("You need to be in a voice channel to use this command.")
+        return
+    
+    voice_channel = message.author.voice.channel
+    voice_client = get(bot.voice_clients, guild=message.guild)
+
+    if voice_client is None:
+        voice_client = await voice_channel.connect()
+
+    file_path = r"D:\Code shits\Projects\F3 discord bot\audio\abunis.mp3"
+
+    if not voice_client.is_playing():
+        audio_source = discord.FFmpegPCMAudio(file_path)
+        voice_client.play(audio_source, after=lambda e: print(f"Finished playing: {e}"))
+        await message.channel.send("Playing 'Isaw ni pinsan' by Abunis")
+    else:
+        await message.channel.send("Oi kalma, nagplaplay pa eh")
+
+    while voice_client.is_playing():
+        await asyncio.sleep(1)
+    await voice_client.disconnect()
 
 # f3wonhee
 async def wonhee(message):
     num = random.randrange(0, 7)
-    image_path = fr"D:\Code shits\F3 discord bot\images\Kurto{str(num)}.jpg"
+    image_path = fr"D:\Code shits\Projects\F3 discord bot\images\Kurto{str(num)}.jpg"
     file = discord.File(image_path)
     await message.channel.send(file=file)
 
@@ -173,6 +206,7 @@ async def slot(message):
     else:
         await message.channel.send("Eguls")
 
+# f3gacha
 async def gacha(message):
     character = random.choices(
         [":detective:", 
@@ -206,6 +240,44 @@ async def gacha(message):
     await msggg.edit(content=character)
     await message.channel.send(f"{rarity[character]} star character")
 
+# f3r/
+async def reddit(message):
+    subreddit_name = message.content.split("/")[1].strip()
+
+    if not subreddit_name:
+        message.channel.send("Please enter a subreddit name")
+        return
+
+    msggg = await message.channel.send("Loading...")
+
+    try:
+        subreddit = REDDIT.subreddit(subreddit_name)
+        posts = [post async for post in subreddit.top(time_filter="week", limit=20)]
+
+        if not posts:
+            message.channel.send("No Posts", f"No memes found in r/{subreddit_name}")
+            return
+
+        random.shuffle(posts)
+
+        for post in posts:
+            if post.url.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                try:
+                    response = requests.get(post.url, stream=True)
+                    if response.status_code == 200:
+                        image_data = io.BytesIO(response.content)
+                        image_data.seek(0)
+
+                        file = discord.File(image_data, filename=f"{post.id}{os.path.splitext(post.url)[1]}")
+
+                        await msggg.edit(content = post.title)
+                        await message.channel.send(file=file)
+                        return
+
+                except Exception as e:
+                    await message.channel.send(text=f"Error getting the post {post.url}: {str(e)}")
+    except Exception as e:
+        await message.channel.send(f"Failed to access subreddit: {str(e)}")
 
 # Features
 @bot.event
@@ -231,7 +303,8 @@ async def on_message(message):
             "***f3rate <mention>*** - rate someone\n"
             "***f3scatter*** - sugal na scatter\n"
             "***f3slots*** - casino slots\n"
-            "***f3gacha*** - character gacha"
+            "***f3gacha*** - character gacha\n"
+            "***f3r/<subreddit>*** - reddit post"
             )
 
     # f3ml
@@ -276,6 +349,9 @@ async def on_message(message):
         await gacha(message)
         return
     
+    if msg.startswith("f3r/"):
+        await reddit(message)
+        return
 
     await bot.process_commands(message)
 
