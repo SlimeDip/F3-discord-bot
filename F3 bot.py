@@ -17,6 +17,8 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 USER_AGENT = os.getenv("USER_AGENT")
+REDDIT = None
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 intents = discord.Intents.default()
 intents.guilds = True
 intents.message_content = True
@@ -24,11 +26,6 @@ intents.messages = True
 intents.guild_messages = True
 intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-REDDIT = asyncpraw.Reddit(
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET,
-    user_agent=USER_AGENT,
-)
 
 # f3ml
 tracker = {
@@ -129,7 +126,7 @@ async def abunis(message):
     if voice_client is None:
         voice_client = await voice_channel.connect()
 
-    file_path = r"D:\Code shits\Projects\F3 discord bot\audio\abunis.mp3"
+    file_path = os.path.join(BASE_DIR, "audio", "abunis.mp3")
 
     if not voice_client.is_playing():
         audio_source = discord.FFmpegPCMAudio(file_path)
@@ -144,8 +141,8 @@ async def abunis(message):
 
 # f3wonhee
 async def wonhee(message):
-    num = random.randrange(0, 7)
-    image_path = fr"D:\Code shits\Projects\F3 discord bot\images\Kurto{str(num)}.jpg"
+    num = str(random.randrange(0, 7))
+    image_path = os.path.join(BASE_DIR, "images", f"Kurto{num}.jpg")
     file = discord.File(image_path)
     await message.channel.send(file=file)
 
@@ -229,33 +226,42 @@ async def gacha(message):
             ":person_in_tuxedo:":4}
 
     msggg = await message.channel.send(":sparkles:")
-    time.sleep(0.5)
+    await asyncio.sleep(0.5)
     await msggg.edit(content=":sparkles: :sparkles:")
-    time.sleep(0.5)
+    await asyncio.sleep(0.5)
     await msggg.edit(content=":sparkles: :sparkles: :sparkles:")
-    time.sleep(0.5)
+    await asyncio.sleep(0.5)
     if rarity[character] == 5:
         await msggg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
     await msggg.edit(content=character)
     await message.channel.send(f"{rarity[character]} star character")
 
 # f3r/
 async def reddit(message):
+    global REDDIT
+    
+    if REDDIT is None:
+        REDDIT = asyncpraw.Reddit(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            user_agent=USER_AGENT,
+        )
+
     subreddit_name = message.content.split("/")[1].strip()
 
     if not subreddit_name:
-        message.channel.send("Please enter a subreddit name")
+        await message.channel.send("Please enter a subreddit name")
         return
 
     msggg = await message.channel.send("Loading...")
 
     try:
-        subreddit = REDDIT.subreddit(subreddit_name)
-        posts = [post async for post in subreddit.top(time_filter="week", limit=20)]
+        subreddit = await REDDIT.subreddit(subreddit_name)
+        posts = [post async for post in subreddit.top(time_filter="week", limit=10)]
 
         if not posts:
-            message.channel.send("No Posts", f"No memes found in r/{subreddit_name}")
+            await message.channel.send(f"No memes found in r/{subreddit_name}")
             return
 
         random.shuffle(posts)
@@ -275,9 +281,35 @@ async def reddit(message):
                         return
 
                 except Exception as e:
-                    await message.channel.send(text=f"Error getting the post {post.url}: {str(e)}")
+                    await message.channel.send(f"Error getting the post {post.url}: {str(e)}")
     except Exception as e:
         await message.channel.send(f"Failed to access subreddit: {str(e)}")
+
+# f3askme
+async def askme(message):
+    global REDDIT
+    
+    if REDDIT is None:
+        REDDIT = asyncpraw.Reddit(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            user_agent=USER_AGENT,
+        )
+
+    try:
+        subreddit = await REDDIT.subreddit("AskReddit")
+        posts = [post async for post in subreddit.top(time_filter="week", limit=10)]
+
+        if not posts:
+            await message.channel.send(f"Cant find questions")
+            return
+
+        post = random.choices(posts)[0]
+        await message.channel.send(post.title)
+
+    except Exception as e:
+        await message.channel.send(f"Failed to gather questions: {str(e)}")
+        return
 
 # Features
 @bot.event
@@ -304,7 +336,8 @@ async def on_message(message):
             "***f3scatter*** - sugal na scatter\n"
             "***f3slots*** - casino slots\n"
             "***f3gacha*** - character gacha\n"
-            "***f3r/<subreddit>*** - reddit post"
+            "***f3r/<subreddit>*** - reddit post\n"
+            "***f3askme*** - random questions"
             )
 
     # f3ml
@@ -349,8 +382,14 @@ async def on_message(message):
         await gacha(message)
         return
     
+    # f3r/
     if msg.startswith("f3r/"):
         await reddit(message)
+        return
+    
+    # f3askme
+    if msg.strip() == "f3askme":
+        await askme(message)
         return
 
     await bot.process_commands(message)
