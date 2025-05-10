@@ -20,3 +20,10 @@ UPDATE 3.0
 --- Other ---
 1. bug fixes
 2. implemented .env and .venv
+
+UPDATE 4.0
+--- New Features ---
+1. f3askme - asks random questions from reddit
+--- Other ---
+1. fixed file paths
+2. fixed f3r/ command
