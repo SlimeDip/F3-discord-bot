@@ -56,7 +56,10 @@ This is a Discord bot made for random everyday thingies. It has features like:
   - A gacha-inspired feature where characters have unique rarity and drop rates.
 
 - **Reddit Scraper**:
-  - Automaticaly fetch a random post from a subreddit
+  - Automaticaly fetch a random post from a subreddit.
+
+- **Ask me**:
+  - Fetches a reddit askme post for you and your friends to answer.
 
 ---
 
@@ -74,6 +77,7 @@ This is a Discord bot made for random everyday thingies. It has features like:
 | `f3slots`        | Casino slots                             |
 | `f3gacha`        | Simple character gacha                   |
 | `f3r/<subreddit>`| Fetches a random post from a subreddit.  |
+| `f3askme`        | Fetches a reddit askme post.             |
 
 ---
 
