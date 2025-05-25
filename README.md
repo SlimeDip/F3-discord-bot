@@ -78,13 +78,3 @@ This is a Discord bot made for random everyday thingies. It has features like:
 | `f3gacha`        | Simple character gacha                   |
 | `f3r/<subreddit>`| Fetches a random post from a subreddit.  |
 | `f3askme`        | Fetches a reddit askme post.             |
-
----
-
-## Setup
-
-### Prerequisites
-1. Install Python 3.8 or higher.
-2. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
