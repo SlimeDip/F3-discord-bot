@@ -1,15 +1,14 @@
 import discord
 import random
-import time
 import os
 import asyncio
 import asyncpraw
 import requests
 import io
+import json
 from discord.ext import commands
 from discord.utils import get
 from dotenv import load_dotenv
-
 
 # Config
 load_dotenv()
@@ -25,89 +24,39 @@ intents.message_content = True
 intents.messages = True
 intents.guild_messages = True
 intents.voice_states = True
+intents.reactions = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# f3ml
-tracker = {
-    "core": "",
-    "exp": "",
-    "gold": "",
-    "mid": "",
-    "roam": ""
-}
+# SAVES
+scatter_highscores = {}
+owned_characters = {}
 
-blame_message = None
-blame_thread = None
+def save_scatter_highscores():
+    with open(os.path.join(BASE_DIR, "data", "scatter_highscores.json"), "w") as f:
+        json.dump(scatter_highscores, f)
 
-def format_board():
-    return "\n".join(
-        f"{role}: {tracker[role] if tracker[role] else ''}"
-        for role in tracker
-    )
+def save_owned_characters():
+    with open(os.path.join(BASE_DIR, "data", "owned_characters.json"), "w") as f:
+        json.dump(owned_characters, f)
 
-async def shuffle_roles():
-    assigned_players = [tracker[role] for role in tracker if tracker[role]]
-    
-    random.shuffle(assigned_players)
-    
-    i = 0
-    for role in tracker:
-        if tracker[role]:
-            tracker[role] = assigned_players[i]
-            i += 1
+def load_scatter_highscores():
+    global scatter_highscores
+    try:
+        with open(os.path.join(BASE_DIR, "data", "scatter_highscores.json"), "r") as f:
+            scatter_highscores = json.load(f)
+    except FileNotFoundError:
+        scatter_highscores = {}
 
-async def handle_fml(message):
-    global blame_message, blame_thread
-    
-    if "f3ml" in message.content.lower():
-        tracker.update({role: "" for role in tracker})
-    
-    if blame_message:
-        await blame_message.edit(content=f"@everyone EMLEM!!!!!:\n\n{format_board()}")
-    else:
-        blame_message = await message.channel.send(f"@everyone EMLEM!!!!!:\n\n{format_board()}")
-        blame_thread = await blame_message.create_thread(
-            name="Emlem X-UP",
-            auto_archive_duration=60
-        )
-        await blame_thread.send("Assign roles here by typing `x core`, `x exp`, etc. `x (role) out` to out. `shuffle` to randomize roles.")
+def load_owned_characters():
+    global owned_characters
+    try:
+        with open(os.path.join(BASE_DIR, "data", "owned_characters.json"), "r") as f:
+            owned_characters = json.load(f)
+    except FileNotFoundError:
+        owned_characters = {}
 
-async def xup(message):
-    global blame_message
-    
-    if blame_thread and message.channel.id != blame_thread.id:
-        return
-        
-    msg = message.content.lower()
-    updated = False
-    
-    current_role = None
-    for role in tracker:
-        if tracker[role] == message.author.mention:
-            current_role = role
-            break
-    
-    for role in tracker:
-        if f"x {role}" in msg:
-            if tracker[role] == "":
-                if current_role:
-                    tracker[current_role] = ""
-                tracker[role] = message.author.mention
-                updated = True
-    
-    for role in tracker:
-        if f"x {role} out" in msg:
-            if message.author.mention == tracker[role]:
-                tracker[role] = ""
-                updated = True
-                break
-    
-    if msg == "shuffle":
-        await shuffle_roles()
-        updated = True
-    
-    if updated and blame_message:
-        await blame_message.edit(content=f"@everyone EMLEM!!!!!:\n\n{format_board()}")
+load_scatter_highscores()
+load_owned_characters()
 
 # f3cf
 async def coinflip(message):
@@ -179,22 +128,63 @@ async def rate(message):
 
 # f3scatter
 async def scatter(message):
-    scatter = ""
-    for i in range(4):
-        for j in range(5):
-            scatter += random.choices([":diamonds:", ":coin:"], weights=[90, 10])[0] + " "
-        scatter += "\n"
-    await message.channel.send(scatter)
+    play = 9
+    total = 0
 
-    if scatter.count(":coin:") >= 3:
-        await message.channel.send("Paldogs")
-    else:
-        await message.channel.send("Eguls")
+    scatter = ":regional_indicator_l: :regional_indicator_o: :regional_indicator_a: :regional_indicator_d: :regional_indicator_i: :regional_indicator_n: :regional_indicator_g: "
+    scattervar = await message.channel.send(scatter)
+    
+    while play > -1:
+        earned = 0
+        scatter = ""
+        for i in range(5):
+            for _ in range(5):
+                scatter += random.choices([":diamonds:",":heart:", ":spades:", ":clubs:", ":coin:"], weights=[24, 24, 24, 24, 2])[0] + " "
+            scatter += "\n"
+            if (i == 4):
+                scatter += f"\nRounds: {play}\n"
+
+        if scatter.count(":diamonds:") >= 5:
+            earned += scatter.count(":diamonds:")
+
+        if scatter.count(":heart:") >= 5:
+            earned += scatter.count(":heart:")
+
+        if scatter.count(":spades:") >= 5:
+            earned += scatter.count(":spades:")
+
+        if scatter.count(":clubs:") >= 5:
+            earned += scatter.count(":clubs:")
+
+        if scatter.count(":coin:") >= 3:
+            play += 10
+            scatter += "+ 10 for getting 3 or more coins\n"
+
+        total += earned
+        scatter += f"+ {earned} points"
+        play -= 1
+        await asyncio.sleep(1)
+        await scattervar.edit(content=scatter)
+
+    scatter += f"\n\nRound over... Total points earned: {total}"
+
+    user_id = str(message.author.id)
+    prev_score = scatter_highscores.get(user_id, 0)
+
+    if total > prev_score:
+        scatter_highscores[user_id] = total
+        save_scatter_highscores()
+        scatter += f"\nNew highscore!"
+
+    scatter += f"\nYour highscore: {scatter_highscores.get(user_id, total)}"
+
+    await scattervar.edit(content=scatter)               
 
 # f3slots
 async def slot(message):
     slots = []
-    for i in range(3):
+    user_id = str(message.author.id)
+    for _ in range(3):
         slots.append(random.choices([":gem:", ":cherries:", ":bell:", ":seven:"])[0])
     await message.channel.send(" ".join(slots))
 
@@ -205,6 +195,8 @@ async def slot(message):
 
 # f3gacha
 async def gacha(message):
+    user_id = str(message.author.id)
+
     character = random.choices(
         [":detective:", 
         ":health_worker:", 
@@ -226,14 +218,27 @@ async def gacha(message):
             ":person_in_tuxedo:":4}
 
     msggg = await message.channel.send(":sparkles:")
+
+    for i in range(1,3):
+        await asyncio.sleep(0.5)
+        await msggg.edit(content=":sparkles:" * (i + 1))
+
     await asyncio.sleep(0.5)
-    await msggg.edit(content=":sparkles: :sparkles:")
-    await asyncio.sleep(0.5)
-    await msggg.edit(content=":sparkles: :sparkles: :sparkles:")
-    await asyncio.sleep(0.5)
+
     if rarity[character] == 5:
         await msggg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
         await asyncio.sleep(0.5)
+
+    if user_id not in owned_characters:
+        owned_characters[user_id] = {}
+
+    if character in owned_characters[user_id]:
+        owned_characters[user_id][character] += 1
+    else:
+        owned_characters[user_id][character] = 1
+
+    save_owned_characters()
+
     await msggg.edit(content=character)
     await message.channel.send(f"{rarity[character]} star character")
 
@@ -311,6 +316,173 @@ async def askme(message):
         await message.channel.send(f"Failed to gather questions: {str(e)}")
         return
 
+# f3characters
+async def view_characters(message):
+    user_id = str(message.author.id)
+    characters = owned_characters.get(user_id, {})
+
+    if not characters:
+        await message.channel.send("You don't own any characters yet.")
+        return
+
+    character_list = "\n".join([f"{char}: {count}" for char, count in characters.items()])
+    await message.channel.send(f"Your owned characters:\n{character_list}")
+
+# f3leaderboard
+async def leaderboard(message):
+    global scatter_highscores
+
+    if not scatter_highscores:
+        await message.channel.send("No data available.")
+        return
+
+    sorted_scatter = sorted(scatter_highscores.items(), key=lambda x: x[1], reverse=True)
+    leaderboard_msg = "\n**Scatter Highscores:**\n"
+    for i, (user_id, score) in enumerate(sorted_scatter[:5], start=1):
+        user = await bot.fetch_user(int(user_id))
+        leaderboard_msg += f"{i}. {user.name}: {score}\n"
+
+    await message.channel.send(leaderboard_msg)
+
+# f3colorgame
+async def colorgame(message):
+    colors = {
+        "🔴": "Red",
+        "🔵": "Blue",
+        "🟡": "Yellow",
+        "🟢": "Green",
+        "🟣": "Purple",
+        "🟠": "Orange"
+    }
+    msg = await message.channel.send("Pick 1 color to join the game! You have 5 seconds...")
+
+    for emoji in colors.keys():
+        await msg.add_reaction(emoji)
+
+    await asyncio.sleep(5)
+
+    msg = await message.channel.fetch_message(msg.id)
+
+    color_users = {emoji: [] for emoji in colors.keys()}
+    user_choices = {}
+
+    for reaction in msg.reactions:
+        if str(reaction.emoji) in colors:
+            async for user in reaction.users():
+                if not user.bot:
+                    color_users[str(reaction.emoji)].append(user)
+                    user_id = str(user.id)
+                    if user_id in user_choices:
+                        user_choices[user_id] += 1
+                    else:
+                        user_choices[user_id] = 1
+
+    for emoji in color_users:
+        filtered_users = []
+        for user in color_users[emoji]:
+            if user_choices[str(user.id)] == 1:
+                filtered_users.append(user)
+        color_users[emoji] = filtered_users
+
+    winning_emojis = []
+    for _ in range(3):
+        winning_emojis.append(random.choice(list(colors.keys())))
+    winners = []
+
+    for emoji in winning_emojis:
+        for user in color_users[emoji]:
+            winners.append(user)
+
+    win_names = ""
+    for emoji in winning_emojis:
+        win_names += f"{emoji} **{colors[emoji]}**, "
+    win_names = win_names.rstrip(", ")
+
+    await message.channel.send(
+        f"🏁 The winning colors are {win_names}!\n"
+        f"🏆 Winners: {', '.join([user.mention for user in winners]) if winners else 'No winners'}"
+    )
+
+# f3race
+async def f3race(message):
+    cars = {
+        "🚙": "Car1",
+        "🚓": "Car2",
+        "🏎️": "Car3",
+        "🚗": "Car4"
+    }
+
+    msg = await message.channel.send("Pick 1 car to join the race! You have 5 seconds...")
+
+    for car in cars.keys():
+        await msg.add_reaction(car)
+
+    await asyncio.sleep(5)
+
+    msg = await message.channel.fetch_message(msg.id)
+
+    car_users = {car: [] for car in cars.keys()}
+    user_choices = {}
+
+    for reaction in msg.reactions:
+        if str(reaction.emoji) in cars:
+            async for user in reaction.users():
+                if not user.bot:
+                    car_users[str(reaction.emoji)].append(user)
+                    user_id = str(user.id)
+                    if user_id in user_choices:
+                        user_choices[user_id] += 1
+                    else:
+                        user_choices[user_id] = 1
+
+    for car in car_users:
+        filtered_users = []
+        for user in car_users[car]:
+            if user_choices[str(user.id)] == 1:
+                filtered_users.append(user)
+        car_users[car] = filtered_users
+
+    racetrack = ["🚙", "🚓", "🏎️", "🚗"]
+    positions = [0, 0, 0, 0] 
+    finish = 10
+
+    board_msg = await message.channel.send("Starting race...")
+
+    winner_index = None
+    while winner_index is None:
+        await asyncio.sleep(1)
+        move = random.randint(0, 3)
+        positions[move] += 1
+
+        board = ""
+        for i, car in enumerate(racetrack):
+            row = ""
+            for j in range(finish+1):
+                if positions[i] == j:
+                    row += car
+                elif j == finish:
+                    row += "🟩"
+                else:
+                    row += "⬛"
+            board += row + "\n"
+        await board_msg.edit(content=board)
+
+        for i, pos in enumerate(positions):
+            if pos >= finish:
+                winner_index = i
+                break
+
+    winning_car = racetrack[winner_index]
+    winners = car_users[winning_car]
+    if winners:
+        winner_mentions = ""
+        for user in winners:
+            winner_mentions += user.mention + ", "
+        winner_mentions = winner_mentions.rstrip(", ")
+        await message.channel.send(f"🏁 Winner: {winning_car} !\n🏆 Users who picked this car: {winner_mentions}")
+    else:
+        await message.channel.send(f"🏁 Winner: {winning_car} !\nNo one picked this car!")
+
 # Features
 @bot.event
 async def on_ready():
@@ -318,7 +490,7 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    global blame_message, blame_thread
+    global blame_message
 
     if message.author == bot.user:
         return
@@ -328,24 +500,23 @@ async def on_message(message):
     if msg.strip() == "f3help":
         blame_message = await message.channel.send(
             "**List of available commands:**\n\n"
-            "***f3ml*** - launch ml x up thread\n"
-            "***f3cf*** - coin flip\n"
+            "**F3 RANDOM**\n"
             "***f3abunis*** - isaw ni pinsan\n"
             "***f3wonhee*** - made for kurto\n"
             "***f3rate <mention>*** - rate someone\n"
+            "***f3r/<subreddit>*** - reddit post\n"
+            "***f3askme*** - random questions\n"
+
+            "\n**F3 GAMES**\n"
+            "***f3characters*** - show owned characters\n"
+            "***f3leaderboard*** - show leaderboard\n"
+            "***f3cf*** - coin flip\n"
             "***f3scatter*** - sugal na scatter\n"
             "***f3slots*** - casino slots\n"
             "***f3gacha*** - character gacha\n"
-            "***f3r/<subreddit>*** - reddit post\n"
-            "***f3askme*** - random questions"
+            "***f3colorgame*** - color game\n"
+            "***f3race*** - car race\n"
             )
-
-    # f3ml
-    if msg.strip() == "f3ml":
-        await handle_fml(message)
-        return
-    if blame_thread and message.channel.id == blame_thread.id:
-        await xup(message)
 
     # f3cf
     if msg.strip() == "f3cf":
@@ -391,7 +562,27 @@ async def on_message(message):
     if msg.strip() == "f3askme":
         await askme(message)
         return
+    
+    # f3characters
+    if msg.strip() == "f3characters":
+        await view_characters(message)
+        return
+    
+    # f3leaderboard
+    if msg.strip() == "f3leaderboard":
+        await leaderboard(message)
+        return
 
+    # f3colorgame
+    if msg.strip() == "f3colorgame":
+        await colorgame(message)
+        return
+    
+    # f3race
+    if msg.strip() == "f3race":
+        await f3race(message)
+        return
+    
     await bot.process_commands(message)
 
 # run

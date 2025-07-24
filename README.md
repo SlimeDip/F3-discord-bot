@@ -1,80 +1,102 @@
 # F3 Discord Bot
 
 **What is F3 / Fairy Forest Faction?**  
-Its a made up group for fun
+It's a made up group for fun.
 
 ---
 
-This is a Discord bot made for random everyday thingies. It has features like:
-- ML x up thread generator
-- Coinflip
+This Discord bot is made for random everyday shenanigans. It features:
+- Coin flip
 - Isaw ni pinsan by Majol Abunis
-- Picture of wonhee (Requested by Kurto-san)
+- Picture of Wonhee (Requested by Kurto-san)
 - Friend rating system
-- "Scatter" game for fun
+- "Scatter" game
 - Casino slots
-- Character gacha
+- Character gacha (with collection and amount tracking)
 - Reddit post scraper
+- Points and leaderboard system
+- Character collection tracking
+- Color game (pick a color, win if your color is chosen)
+- Car race (pick a car, watch the race, win if your car wins)
+- AskMe (fetches Reddit AskMe posts)
 
 ---
 
 ## Table of Contents
 1. [Features](#features)
 2. [Commands](#commands)
-3. [Setup](#setup)
 
 ---
 
 ## Features
 
-- **ML x up System**:
-  - Users can claim roles by typing `x <role>`.
-  - Users can remove themselves from roles by typing `x <role> out`.
-  - The bot updates a blame board in real-time to reflect role assignments.
+- **Coin Flip**  
+  Flip a coin and test your luck.
 
-- **Coin Flip**:
-  - Users can do a coin flip.
+- **Isaw ni Pinsan**  
+  A masterpiece by Majol Abunis.
 
-- **Isaw ni Pinsan**:
-  - A masterpiece by Majol Abunis.
+- **Random Wonhee**  
+  Sends a random image of Wonhee from a predefined list.
 
-- **Random Wonhee**:
-  - The bot will send a random image of Wonhee from a predefined list when triggered by a command.
-  - I dont want to do this but Kurto-san wants it.
+- **Rating System**  
+  Rate your friends (can be harsh).
 
-- **Rating system**:
-  - The bot will send a random rating of someone you mentioned.
-  - it can be harsh.
+- **Scatter Game**  
+  Simulate a simple game of "Scatter" and earn points and highscores.
 
-- **Scatter**:
-  - The bot will simulate a simple game of "Scatter".
+- **Slots**  
+  Traditional casino slots.
 
-- **Slots**:
-  - Traditional casino slots.
+- **Gacha**  
+  Pull for characters with unique rarity and drop rates. Tracks how many of each character you own.
 
-- **Gacha**:
-  - A gacha-inspired feature where characters have unique rarity and drop rates.
+- **Points System**  
+  Earn points from games and view your total.
 
-- **Reddit Scraper**:
-  - Automaticaly fetch a random post from a subreddit.
+- **Leaderboard**  
+  See the top users for points and scatter highscores.
 
-- **Ask me**:
-  - Fetches a reddit askme post for you and your friends to answer.
+- **Character Collection**  
+  View all characters you own and their amounts.
+
+- **Color Game**  
+  Pick a color by reacting, and win if your color is randomly chosen.
+
+- **Car Race**  
+  Pick a car by reacting, watch the race in real time, and win if your car wins.
+
+- **Reddit Scraper**  
+  Fetch a random post from any subreddit.
+
+- **Ask Me**  
+  Fetches a Reddit AskMe post for you and your friends to answer.
 
 ---
 
 ## Commands
 
-| Command          | Description                              |
-|------------------|------------------------------------------|
-| `f3help`         | Shows available commands.                |
-| `f3ml`           | Starts x up thread.                      |
-| `f3cf`           | Coin flip.                               |
-| `f3abunis`       | Writes a masterpiece.                    |
-| `f3wonhee`       | Sends a random image of Wonhee.          |
-| `f3rate`         | Rate your friends                        |
-| `f3scatter`      | Simulate "Scatter" game.                 |
-| `f3slots`        | Casino slots                             |
-| `f3gacha`        | Simple character gacha                   |
-| `f3r/<subreddit>`| Fetches a random post from a subreddit.  |
-| `f3askme`        | Fetches a reddit askme post.             |
+| Command             | Description                                   |
+|---------------------|-----------------------------------------------|
+| `f3help`            | Shows available commands.                     |
+| `f3cf`              | Coin flip.                                    |
+| `f3abunis`          | Plays a masterpiece.                          |
+| `f3wonhee`          | Sends a random image of Wonhee.               |
+| `f3rate`            | Rate your friends.                            |
+| `f3scatter`         | Simulate "Scatter" game.                      |
+| `f3slots`           | Casino slots.                                 |
+| `f3gacha`           | Simple character gacha.                       |
+| `f3characters`      | Show your owned characters and amounts.       |
+| `f3leaderboard`     | Show points and scatter highscore leaderboard |
+| `f3points`          | Show your total points.                       |
+| `f3colorgame`       | Play the color picking game.                  |
+| `f3race`            | Play the car race game.                       |
+| `f3r/<subreddit>`   | Fetches a random post from a subreddit.       |
+| `f3askme`           | Fetches a Reddit AskMe post.                  |
+
+---
+
+## Notes
+
+- All game data (points, highscores, owned characters) is saved in the `data/` folder and ignored by git.
+- This bot is just for fun

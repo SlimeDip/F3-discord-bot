@@ -27,3 +27,13 @@ UPDATE 4.0
 --- Other ---
 1. fixed file paths
 2. fixed f3r/ command
+
+UPDATE 5.0
+--- New Features ---
+1. f3scatter rework
+2. f3colorgame
+3. f3race
+4. f3leaderboard
+--- Other ---
+1. remove ml x up
+2. f3help ui change
