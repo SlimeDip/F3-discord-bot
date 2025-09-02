@@ -1,13 +1,13 @@
 import discord
+from discord.ext import commands
 import random
 import os
 import asyncio
 import asyncpraw
-import requests
+import aiohttp
 import io
 import json
-from discord.ext import commands
-from discord.utils import get
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Config
@@ -16,8 +16,16 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 USER_AGENT = os.getenv("USER_AGENT")
-REDDIT = None
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+IMAGES_DIR = BASE_DIR / "images"
+AUDIO_DIR = BASE_DIR / "audio"
+
+DATA_DIR.mkdir(exist_ok=True)
+IMAGES_DIR.mkdir(exist_ok=True)
+AUDIO_DIR.mkdir(exist_ok=True)
+
 intents = discord.Intents.default()
 intents.guilds = True
 intents.message_content = True
@@ -25,85 +33,171 @@ intents.messages = True
 intents.guild_messages = True
 intents.voice_states = True
 intents.reactions = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+intents.members = True
 
-# SAVES
-scatter_highscores = {}
-owned_characters = {}
+bot = commands.Bot(command_prefix="f3", intents=intents)
 
-def save_scatter_highscores():
-    with open(os.path.join(BASE_DIR, "data", "scatter_highscores.json"), "w") as f:
-        json.dump(scatter_highscores, f)
+bot.scatter_highscores = {}
+bot.owned_characters = {}
+bot._data_lock = asyncio.Lock()
+bot.reddit_client = None 
 
-def save_owned_characters():
-    with open(os.path.join(BASE_DIR, "data", "owned_characters.json"), "w") as f:
-        json.dump(owned_characters, f)
+SCATTER_FILE = DATA_DIR / "scatter_highscores.json"
+CHAR_FILE = DATA_DIR / "owned_characters.json"
 
-def load_scatter_highscores():
-    global scatter_highscores
-    try:
-        with open(os.path.join(BASE_DIR, "data", "scatter_highscores.json"), "r") as f:
-            scatter_highscores = json.load(f)
-    except FileNotFoundError:
-        scatter_highscores = {}
+async def async_json_load(path: Path):
+    if not path.exists():
+        return {}
+    return await asyncio.to_thread(lambda: json.loads(path.read_text(encoding="utf-8")))
 
-def load_owned_characters():
-    global owned_characters
-    try:
-        with open(os.path.join(BASE_DIR, "data", "owned_characters.json"), "r") as f:
-            owned_characters = json.load(f)
-    except FileNotFoundError:
-        owned_characters = {}
+async def async_json_save(path: Path, data):
+    await asyncio.to_thread(lambda: path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8"))
 
-load_scatter_highscores()
-load_owned_characters()
+async def init_storage():
+    bot.scatter_highscores = await async_json_load(SCATTER_FILE)
+    bot.owned_characters = await async_json_load(CHAR_FILE)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+    await init_storage()
+    print("Storage loaded.")
+
+# --------------------------
+# small helper functions
+# --------------------------
+
+def mention_or_name(member: discord.Member):
+    return member.mention if member else "Unknown"
+
+async def ensure_reddit():
+    if bot.reddit_client is None:
+        if not (CLIENT_ID and CLIENT_SECRET and USER_AGENT):
+            raise RuntimeError("Reddit credentials are missing in env.")
+        bot.reddit_client = asyncpraw.Reddit(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            user_agent=USER_AGENT,
+        )
+    return bot.reddit_client
+
+async def _gather_reactions(ctx, message: discord.Message, valid_emojis, wait_seconds=5):
+    for e in valid_emojis:
+        try:
+            await message.add_reaction(e)
+        except Exception:
+            pass
+    await asyncio.sleep(wait_seconds)
+    message = await ctx.channel.fetch_message(message.id)
+
+    emoji_users = {e: [] for e in valid_emojis}
+    user_choice_count = {}
+    for reaction in message.reactions:
+        if str(reaction.emoji) in valid_emojis:
+            async for user in reaction.users():
+                if user.bot:
+                    continue
+                emoji_users[str(reaction.emoji)].append(user)
+                uid = str(user.id)
+                user_choice_count[uid] = user_choice_count.get(uid, 0) + 1
+
+    for e in list(emoji_users.keys()):
+        filtered = [u for u in emoji_users[e] if user_choice_count.get(str(u.id), 0) == 1]
+        emoji_users[e] = filtered
+    return emoji_users
+
+# --------------------------
+# Commands
+# --------------------------
+
+# f3help
+bot.remove_command("help")
+@bot.command(name="help")
+async def help(ctx):
+    board = (
+    "**List of available commands:**\n\n"
+    "**F3 RANDOM**\n"
+    "***f3abunis*** - isaw ni pinsan\n"
+    "***f3wonhee*** - made for kurto\n"
+    "***f3rate <mention>*** - rate someone\n"
+    "***f3r/<subreddit>*** - reddit post\n"
+    "***f3askme*** - random questions\n"
+
+    "\n**F3 GAMES**\n"
+    "***f3characters*** - show owned characters\n"
+    "***f3leaderboard*** - show leaderboard\n"
+    "***f3cf*** - coin flip\n"
+    "***f3scatter*** - sugal na scatter\n"
+    "***f3slots*** - casino slots\n"
+    "***f3gacha*** - character gacha\n"
+    "***f3colorgame*** - color game\n"
+    "***f3race*** - car race\n"
+    "***f3case*** - open a case\n"
+    )
+    
+    await ctx.send(board)
 
 # f3cf
-async def coinflip(message):
+@bot.command(name="cf")
+async def coinflip(ctx):
     result = random.choice(["Heads", "Tails"])
-    await message.channel.send(f":coin: Coin flip result: **{result}**!")
+    await ctx.send(f":coin: Coin flip result: **{result}**!")
 
 # f3abunis
-async def abunis(message):
-    if message.author.voice is None:
-        await message.channel.send("You need to be in a voice channel to use this command.")
+@bot.command(name="abunis")
+async def abunis(ctx):
+    if ctx.author.voice is None or ctx.author.voice.channel is None:
+        await ctx.send("You need to be in a voice channel to use this command.")
         return
-    
-    voice_channel = message.author.voice.channel
-    voice_client = get(bot.voice_clients, guild=message.guild)
 
-    if voice_client is None:
-        voice_client = await voice_channel.connect()
+    voice_channel = ctx.author.voice.channel
+    voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
 
-    file_path = os.path.join(BASE_DIR, "audio", "abunis.mp3")
+    if voice_client is None or not voice_client.is_connected():
+        try:
+            voice_client = await voice_channel.connect()
+        except Exception as e:
+            await ctx.send(f"Failed to join voice channel: {e}")
+            return
+
+    file_path = AUDIO_DIR / "abunis.mp3"
+    if not file_path.exists():
+        await ctx.send("Audio file not found.")
+        return
 
     if not voice_client.is_playing():
-        audio_source = discord.FFmpegPCMAudio(file_path)
-        voice_client.play(audio_source, after=lambda e: print(f"Finished playing: {e}"))
-        await message.channel.send("Playing 'Isaw ni pinsan' by Abunis")
+        source = discord.FFmpegPCMAudio(str(file_path))
+        try:
+            voice_client.play(source)
+            while voice_client.is_playing():
+                await asyncio.sleep(1)
+        except Exception as e:
+            await ctx.send(f"Error while playing audio: {e}")
+        finally:
+            try:
+                await voice_client.disconnect()
+            except Exception:
+                pass
     else:
-        await message.channel.send("Oi kalma, nagplaplay pa eh")
-
-    while voice_client.is_playing():
-        await asyncio.sleep(1)
-    await voice_client.disconnect()
+        await ctx.send("Already playing audio — wait until it finishes.")
 
 # f3wonhee
-async def wonhee(message):
+@bot.command(name="wonhee")
+async def wonhee(ctx):
     num = str(random.randrange(0, 7))
-    image_path = os.path.join(BASE_DIR, "images", f"Kurto{num}.jpg")
-    file = discord.File(image_path)
-    await message.channel.send(file=file)
+    image_path = IMAGES_DIR / f"Kurto{num}.jpg"
+    if not image_path.exists():
+        await ctx.send("Image not found.")
+        return
+    await ctx.send(file=discord.File(image_path))
 
 # f3rate
-async def rate(message):
-    if len(message.mentions) == 0:
-        await message.channel.send("Pls mention someone to rate")
+@bot.command(name="rate")
+async def rate(ctx, user: discord.Member = None):
+    if user is None:
+        await ctx.send("Please mention someone to rate.")
         return
-    
-    user = message.mentions[0]
-    ratings = random.randrange(0,11)
-
+    ratings = random.randrange(0, 11)
     bad_comments = [
         "Medyo burat.",
         "Mukhang bisaya.",
@@ -111,241 +205,210 @@ async def rate(message):
         "Eto na yon?",
         "Di ko trip eh.",
         "No comment nalang.",
-        "Haup na badtrip ako bigla."]
-    
+        "Haup na badtrip ako bigla."
+    ]
     good_comments = [
         "Pwede na.",
         "Masarap kahit walang ulam.",
         "Napaka angas.",
-        "Krazy masyado."]
-
-    if ratings < 7:
-        comment = random.choice(bad_comments)
-    else:
-        comment = random.choice(good_comments)
-
-    await message.channel.send(f"{user.mention} is {ratings}/10. {comment}")
+        "Krazy masyado."
+    ]
+    comment = random.choice(bad_comments if ratings < 7 else good_comments)
+    await ctx.send(f"{user.mention} is {ratings}/10. {comment}")
 
 # f3scatter
-async def scatter(message):
+@bot.command(name="scatter")
+async def scatter(ctx):
     play = 9
     total = 0
 
-    scatter = ":regional_indicator_l: :regional_indicator_o: :regional_indicator_a: :regional_indicator_d: :regional_indicator_i: :regional_indicator_n: :regional_indicator_g: "
-    scattervar = await message.channel.send(scatter)
-    
+    scatter_msg = ":regional_indicator_l: :regional_indicator_o: :regional_indicator_a: :regional_indicator_d: :regional_indicator_i: :regional_indicator_n: :regional_indicator_g:"
+    scatter_var = await ctx.send(scatter_msg)
+
     while play > -1:
         earned = 0
-        scatter = ""
-        for i in range(5):
-            for _ in range(5):
-                scatter += random.choices([":diamonds:",":heart:", ":spades:", ":clubs:", ":coin:"], weights=[24, 24, 24, 24, 2])[0] + " "
-            scatter += "\n"
-            if (i == 4):
-                scatter += f"\nRounds: {play}\n"
+        symbols = [":diamonds:", ":heart:", ":spades:", ":clubs:", ":coin:"]
+        weights = [24, 24, 24, 24, 2]
 
-        if scatter.count(":diamonds:") >= 5:
-            earned += scatter.count(":diamonds:")
+        grid = []
+        for _ in range(5):
+            row = " ".join(random.choices(symbols, weights=weights, k=5))
+            grid.append(row)
+        display = "\n".join(grid)
+        display += f"\n\nRounds: {play}\n"
 
-        if scatter.count(":heart:") >= 5:
-            earned += scatter.count(":heart:")
-
-        if scatter.count(":spades:") >= 5:
-            earned += scatter.count(":spades:")
-
-        if scatter.count(":clubs:") >= 5:
-            earned += scatter.count(":clubs:")
-
-        if scatter.count(":coin:") >= 3:
+        counts = {i: display.count(i) for i in symbols}
+        for i in [":diamonds:", ":heart:", ":spades:", ":clubs:"]:
+            if counts[i] >= 5:
+                earned += counts[i]
+        if counts[":coin:"] >= 3:
             play += 10
-            scatter += "+ 10 for getting 3 or more coins\n"
+            display += "+ 10 for getting 3 or more coins\n"
 
         total += earned
-        scatter += f"+ {earned} points"
+        display += f"+ {earned} points"
         play -= 1
+
         await asyncio.sleep(1)
-        await scattervar.edit(content=scatter)
+        await scatter_var.edit(content=display)
 
-    scatter += f"\n\nRound over... Total points earned: {total}"
+    display += f"\n\nRound over... Total points earned: {total}"
 
-    user_id = str(message.author.id)
-    prev_score = scatter_highscores.get(user_id, 0)
+    user_id = str(ctx.author.id)
+    prev_score = int(bot.scatter_highscores.get(user_id, 0))
 
     if total > prev_score:
-        scatter_highscores[user_id] = total
-        save_scatter_highscores()
-        scatter += f"\nNew highscore!"
+        bot.scatter_highscores[user_id] = total
+        async with bot._data_lock:
+            await async_json_save(SCATTER_FILE, bot.scatter_highscores)
+        display += f"\nNew highscore!"
 
-    scatter += f"\nYour highscore: {scatter_highscores.get(user_id, total)}"
+    display += f"\nYour highscore: {bot.scatter_highscores.get(user_id, total)}"
 
-    await scattervar.edit(content=scatter)               
+    await scatter_var.edit(content=display)
 
 # f3slots
-async def slot(message):
-    slots = []
-    user_id = str(message.author.id)
-    for _ in range(3):
-        slots.append(random.choices([":gem:", ":cherries:", ":bell:", ":seven:"])[0])
-    await message.channel.send(" ".join(slots))
-
+@bot.command(name="slots")
+async def slot(ctx):
+    slots = [random.choice([":gem:", ":cherries:", ":bell:", ":seven:"]) for _ in range(3)]
+    await ctx.send(" ".join(slots))
     if len(set(slots)) == 1:
-        await message.channel.send("Paldogs")
+        await ctx.send("Paldogs")
     else:
-        await message.channel.send("Eguls")
+        await ctx.send("Eguls")
 
 # f3gacha
-async def gacha(message):
-    user_id = str(message.author.id)
+@bot.command(name="gacha")
+async def gacha(ctx):
+    user_id = str(ctx.author.id)
+    pool = [
+        (":detective:", 5),
+        (":health_worker:", 20),
+        (":man_police_officer:", 20),
+        (":judge:", 20),
+        (":man_supervillain:", 5),
+        (":man_mage:", 5),
+        (":factory_worker:", 5),
+        (":person_in_tuxedo:", 20),
+    ]
+    characters, weights = zip(*pool)
+    character = random.choices(characters, weights=weights, k=1)[0]
+    rarity = {":detective:": 5, ":health_worker:": 4, ":man_police_officer:": 4,
+              ":judge:": 4, ":man_supervillain:": 5, ":man_mage:": 5,
+              ":factory_worker:": 5, ":person_in_tuxedo:": 4}
 
-    character = random.choices(
-        [":detective:", 
-        ":health_worker:", 
-        ":man_police_officer:", 
-        ":judge:", 
-        ":man_supervillain:", 
-        ":man_mage:", 
-        ":factory_worker:", 
-        ":person_in_tuxedo:"], 
-        weights=[5, 20, 20, 20, 5, 5, 5, 20])[0]
-
-    rarity = {":detective:":5, 
-            ":health_worker:":4, 
-            ":man_police_officer:":4,
-            ":judge:":4, 
-            ":man_supervillain:":5, 
-            ":man_mage:":5, 
-            ":factory_worker:":5,
-            ":person_in_tuxedo:":4}
-
-    msggg = await message.channel.send(":sparkles:")
-
-    for i in range(1,3):
+    msg = await ctx.send(":sparkles:")
+    for i in range(1, 3):
         await asyncio.sleep(0.5)
-        await msggg.edit(content=":sparkles:" * (i + 1))
-
+        await msg.edit(content=":sparkles:" * (i + 1))
     await asyncio.sleep(0.5)
-
     if rarity[character] == 5:
-        await msggg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
+        await msg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
         await asyncio.sleep(0.5)
 
-    if user_id not in owned_characters:
-        owned_characters[user_id] = {}
+    # update owned
+    if user_id not in bot.owned_characters:
+        bot.owned_characters[user_id] = {}
+    bot.owned_characters[user_id][character] = bot.owned_characters[user_id].get(character, 0) + 1
 
-    if character in owned_characters[user_id]:
-        owned_characters[user_id][character] += 1
-    else:
-        owned_characters[user_id][character] = 1
+    async with bot._data_lock:
+        await async_json_save(CHAR_FILE, bot.owned_characters)
 
-    save_owned_characters()
+    await msg.edit(content=character)
+    await ctx.send(f"{rarity[character]} star character")
 
-    await msggg.edit(content=character)
-    await message.channel.send(f"{rarity[character]} star character")
-
-# f3r/
-async def reddit(message):
-    global REDDIT
-    
-    if REDDIT is None:
-        REDDIT = asyncpraw.Reddit(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            user_agent=USER_AGENT,
-        )
-
-    subreddit_name = message.content.split("/")[1].strip()
-
+# f3r <subreddit>
+@bot.command(name="r")
+async def reddit(ctx, subreddit_name: str = None):
     if not subreddit_name:
-        await message.channel.send("Please enter a subreddit name")
+        await ctx.send("Please provide a subreddit: `f3r subreddit_name`")
         return
 
-    msggg = await message.channel.send("Loading...")
-
     try:
-        subreddit = await REDDIT.subreddit(subreddit_name)
-        posts = [post async for post in subreddit.top(time_filter="week", limit=10)]
+        reddit = await ensure_reddit()
+    except RuntimeError as e:
+        await ctx.send(str(e))
+        return
 
-        if not posts:
-            await message.channel.send(f"No memes found in r/{subreddit_name}")
-            return
-
+    loading = await ctx.send("Loading...")
+    try:
+        subreddit = await reddit.subreddit(subreddit_name)
+        posts = [post async for post in subreddit.top(time_filter="week", limit=25)]
         random.shuffle(posts)
+        async with aiohttp.ClientSession() as session:
+            for post in posts:
+                url = getattr(post, "url", "")
+                if url and url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                    try:
+                        async with session.get(url) as resp:
+                            if resp.status == 200:
+                                data = await resp.read()
+                                f = io.BytesIO(data)
+                                ext = os.path.splitext(url)[1]
+                                fname = f"{post.id}{ext}"
+                                f.seek(0)
+                                await loading.edit(content=post.title)
+                                await ctx.send(file=discord.File(f, filename=fname))
+                                return
+                    except Exception as e:
+                        # try next post
+                        continue
 
-        for post in posts:
-            if post.url.endswith(('.jpg', '.jpeg', '.png', '.gif')):
-                try:
-                    response = requests.get(post.url, stream=True)
-                    if response.status_code == 200:
-                        image_data = io.BytesIO(response.content)
-                        image_data.seek(0)
-
-                        file = discord.File(image_data, filename=f"{post.id}{os.path.splitext(post.url)[1]}")
-
-                        await msggg.edit(content = post.title)
-                        await message.channel.send(file=file)
-                        return
-
-                except Exception as e:
-                    await message.channel.send(f"Error getting the post {post.url}: {str(e)}")
+        await loading.edit(content=f"No image posts found in r/{subreddit_name}")
     except Exception as e:
-        await message.channel.send(f"Failed to access subreddit: {str(e)}")
+        await loading.edit(content=f"Failed to access subreddit: {e}")
 
 # f3askme
-async def askme(message):
-    global REDDIT
-    
-    if REDDIT is None:
-        REDDIT = asyncpraw.Reddit(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            user_agent=USER_AGENT,
-        )
+@bot.command(name="askme")
+async def askme(ctx):
+    try:
+        reddit = await ensure_reddit()
+    except RuntimeError as e:
+        await ctx.send(str(e))
+        return
 
     try:
-        subreddit = await REDDIT.subreddit("AskReddit")
-        posts = [post async for post in subreddit.top(time_filter="week", limit=10)]
-
+        sub = await reddit.subreddit("AskReddit")
+        posts = [post async for post in sub.top(time_filter="week", limit=25)]
         if not posts:
-            await message.channel.send(f"Cant find questions")
+            await ctx.send("Couldn't find questions right now.")
             return
-
-        post = random.choices(posts)[0]
-        await message.channel.send(post.title)
-
+        post = random.choice(posts)
+        await ctx.send(post.title)
     except Exception as e:
-        await message.channel.send(f"Failed to gather questions: {str(e)}")
-        return
+        await ctx.send(f"Failed to gather questions: {e}")
 
 # f3characters
-async def view_characters(message):
-    user_id = str(message.author.id)
-    characters = owned_characters.get(user_id, {})
-
-    if not characters:
-        await message.channel.send("You don't own any characters yet.")
+@bot.command(name="characters")
+async def view_characters(ctx):
+    user_id = str(ctx.author.id)
+    chars = bot.owned_characters.get(user_id, {})
+    if not chars:
+        await ctx.send("You don't own any characters yet.")
         return
-
-    character_list = "\n".join([f"{char}: {count}" for char, count in characters.items()])
-    await message.channel.send(f"Your owned characters:\n{character_list}")
+    character_list = "\n".join([f"{char}: {count}" for char, count in chars.items()])
+    await ctx.send(f"Your owned characters:\n{character_list}")
 
 # f3leaderboard
-async def leaderboard(message):
-    global scatter_highscores
-
-    if not scatter_highscores:
-        await message.channel.send("No data available.")
+@bot.command(name="leaderboard")
+async def leaderboard(ctx):
+    if not bot.scatter_highscores:
+        await ctx.send("No data available.")
         return
-
-    sorted_scatter = sorted(scatter_highscores.items(), key=lambda x: x[1], reverse=True)
-    leaderboard_msg = "\n**Scatter Highscores:**\n"
+    sorted_scatter = sorted(bot.scatter_highscores.items(), key=lambda x: int(x[1]), reverse=True)
+    lines = ["**Scatter Highscores:**"]
     for i, (user_id, score) in enumerate(sorted_scatter[:5], start=1):
-        user = await bot.fetch_user(int(user_id))
-        leaderboard_msg += f"{i}. {user.name}: {score}\n"
-
-    await message.channel.send(leaderboard_msg)
+        try:
+            user = await bot.fetch_user(int(user_id))
+            name = user.name
+        except Exception:
+            name = f"<unknown {user_id}>"
+        lines.append(f"{i}. {name}: {score}")
+    await ctx.send("\n".join(lines))
 
 # f3colorgame
-async def colorgame(message):
+@bot.command(name="colorgame")
+async def colorgame(ctx):
     colors = {
         "🔴": "Red",
         "🔵": "Blue",
@@ -354,110 +417,47 @@ async def colorgame(message):
         "🟣": "Purple",
         "🟠": "Orange"
     }
-    msg = await message.channel.send("Pick 1 color to join the game! You have 5 seconds...")
+    prompt = await ctx.send("Pick 1 color to join the game! You have 5 seconds...")
+    emoji_users = await _gather_reactions(ctx, prompt, list(colors.keys()), wait_seconds=5)
 
-    for emoji in colors.keys():
-        await msg.add_reaction(emoji)
-
-    await asyncio.sleep(5)
-
-    msg = await message.channel.fetch_message(msg.id)
-
-    color_users = {emoji: [] for emoji in colors.keys()}
-    user_choices = {}
-
-    for reaction in msg.reactions:
-        if str(reaction.emoji) in colors:
-            async for user in reaction.users():
-                if not user.bot:
-                    color_users[str(reaction.emoji)].append(user)
-                    user_id = str(user.id)
-                    if user_id in user_choices:
-                        user_choices[user_id] += 1
-                    else:
-                        user_choices[user_id] = 1
-
-    for emoji in color_users:
-        filtered_users = []
-        for user in color_users[emoji]:
-            if user_choices[str(user.id)] == 1:
-                filtered_users.append(user)
-        color_users[emoji] = filtered_users
-
-    winning_emojis = []
-    for _ in range(3):
-        winning_emojis.append(random.choice(list(colors.keys())))
+    winning_emojis = [random.choice(list(colors.keys())) for _ in range(3)]
     winners = []
+    for em in winning_emojis:
+        winners.extend(emoji_users.get(em, []))
 
-    for emoji in winning_emojis:
-        for user in color_users[emoji]:
-            winners.append(user)
-
-    win_names = ""
-    for emoji in winning_emojis:
-        win_names += f"{emoji} **{colors[emoji]}**, "
-    win_names = win_names.rstrip(", ")
-
-    await message.channel.send(
+    win_names = ", ".join([f"{em} **{colors[em]}**" for em in winning_emojis])
+    await ctx.send(
         f"🏁 The winning colors are {win_names}!\n"
-        f"🏆 Winners: {', '.join([user.mention for user in winners]) if winners else 'No winners'}"
+        f"🏆 Winners: {', '.join([u.mention for u in winners]) if winners else 'No winners'}"
     )
 
 # f3race
-async def f3race(message):
+@bot.command(name="race")
+async def race(ctx):
     cars = {
         "🚙": "Car1",
         "🚓": "Car2",
         "🏎️": "Car3",
         "🚗": "Car4"
     }
+    prompt = await ctx.send("Pick 1 car to join the race! You have 5 seconds...")
+    car_users = await _gather_reactions(ctx, prompt, list(cars.keys()), wait_seconds=5)
 
-    msg = await message.channel.send("Pick 1 car to join the race! You have 5 seconds...")
-
-    for car in cars.keys():
-        await msg.add_reaction(car)
-
-    await asyncio.sleep(5)
-
-    msg = await message.channel.fetch_message(msg.id)
-
-    car_users = {car: [] for car in cars.keys()}
-    user_choices = {}
-
-    for reaction in msg.reactions:
-        if str(reaction.emoji) in cars:
-            async for user in reaction.users():
-                if not user.bot:
-                    car_users[str(reaction.emoji)].append(user)
-                    user_id = str(user.id)
-                    if user_id in user_choices:
-                        user_choices[user_id] += 1
-                    else:
-                        user_choices[user_id] = 1
-
-    for car in car_users:
-        filtered_users = []
-        for user in car_users[car]:
-            if user_choices[str(user.id)] == 1:
-                filtered_users.append(user)
-        car_users[car] = filtered_users
-
-    racetrack = ["🚙", "🚓", "🏎️", "🚗"]
-    positions = [0, 0, 0, 0] 
+    racetrack = list(cars.keys())
+    positions = [0] * len(racetrack)
     finish = 10
 
-    board_msg = await message.channel.send("Starting race...")
-
+    board_msg = await ctx.send("Starting race...")
     winner_index = None
     while winner_index is None:
         await asyncio.sleep(1)
-        move = random.randint(0, 3)
+        move = random.randint(0, len(racetrack) - 1)
         positions[move] += 1
 
         board = ""
         for i, car in enumerate(racetrack):
             row = ""
-            for j in range(finish+1):
+            for j in range(finish + 1):
                 if positions[i] == j:
                     row += car
                 elif j == finish:
@@ -465,7 +465,10 @@ async def f3race(message):
                 else:
                     row += "⬛"
             board += row + "\n"
-        await board_msg.edit(content=board)
+        try:
+            await board_msg.edit(content=board)
+        except Exception:
+            pass
 
         for i, pos in enumerate(positions):
             if pos >= finish:
@@ -473,117 +476,41 @@ async def f3race(message):
                 break
 
     winning_car = racetrack[winner_index]
-    winners = car_users[winning_car]
+    winners = car_users.get(winning_car, [])
     if winners:
-        winner_mentions = ""
-        for user in winners:
-            winner_mentions += user.mention + ", "
-        winner_mentions = winner_mentions.rstrip(", ")
-        await message.channel.send(f"🏁 Winner: {winning_car} !\n🏆 Users who picked this car: {winner_mentions}")
+        await ctx.send(f"🏁 Winner: {winning_car} !\n🏆 Users who picked this car: {', '.join([u.mention for u in winners])}")
     else:
-        await message.channel.send(f"🏁 Winner: {winning_car} !\nNo one picked this car!")
+        await ctx.send(f"🏁 Winner: {winning_car} !\nNo one picked this car!")
 
-# Features
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
+# f3case
+@bot.command(name="case")
+async def case(ctx):
+    items = ["🔪", "🧤", "🔫", "🏵️", "💿", "🔗"]
+    itemsname = {"🔪": "Knife skin", "🧤": "Glove", "🔫": "Gun skin", "🏵️": "Sticker", "💿": "Music", "🔗": "Keychain"}
+    weights = [1, 4, 5, 30, 30, 30]
 
-@bot.event
-async def on_message(message):
-    global blame_message
+    spin = await ctx.send("Spinning...")
+    box = [random.choices(items, weights=weights)[0] for _ in range(5)]
 
-    if message.author == bot.user:
-        return
+    for _ in range(random.randrange(10, 15)):
+        case_item = "".join(box)
+        box.pop(0)
+        box.append(random.choices(items, weights=weights)[0])
+        case_item += "\n"
+        case_item += " " * 27
+        case_item += ":arrow_up_small:"
+        try:
+            await spin.edit(content=case_item)
+        except Exception:
+            pass
+        await asyncio.sleep(0.5)
 
-    msg = message.content.lower()
+    won = itemsname.get(box[1], "item")
+    await ctx.send(f"You won a {won}!")
 
-    if msg.strip() == "f3help":
-        blame_message = await message.channel.send(
-            "**List of available commands:**\n\n"
-            "**F3 RANDOM**\n"
-            "***f3abunis*** - isaw ni pinsan\n"
-            "***f3wonhee*** - made for kurto\n"
-            "***f3rate <mention>*** - rate someone\n"
-            "***f3r/<subreddit>*** - reddit post\n"
-            "***f3askme*** - random questions\n"
 
-            "\n**F3 GAMES**\n"
-            "***f3characters*** - show owned characters\n"
-            "***f3leaderboard*** - show leaderboard\n"
-            "***f3cf*** - coin flip\n"
-            "***f3scatter*** - sugal na scatter\n"
-            "***f3slots*** - casino slots\n"
-            "***f3gacha*** - character gacha\n"
-            "***f3colorgame*** - color game\n"
-            "***f3race*** - car race\n"
-            )
-
-    # f3cf
-    if msg.strip() == "f3cf":
-        await coinflip(message)
-        return
-    
-    # f3abunis
-    if msg.strip() == "f3abunis":
-        await abunis(message)
-        return
-    
-    # f3wonhee
-    if msg.strip() == "f3wonhee":
-        await wonhee(message)
-        return
-    
-    # f3rate
-    if msg.startswith("f3rate"):
-        await rate(message)
-        return
-    
-    # f3scatter
-    if msg.strip() == "f3scatter":
-        await scatter(message)
-        return
-
-    # f3slots
-    if msg.strip() == "f3slots":
-        await slot(message)
-        return
-    
-    # f3gacha
-    if msg.strip() == "f3gacha":
-        await gacha(message)
-        return
-    
-    # f3r/
-    if msg.startswith("f3r/"):
-        await reddit(message)
-        return
-    
-    # f3askme
-    if msg.strip() == "f3askme":
-        await askme(message)
-        return
-    
-    # f3characters
-    if msg.strip() == "f3characters":
-        await view_characters(message)
-        return
-    
-    # f3leaderboard
-    if msg.strip() == "f3leaderboard":
-        await leaderboard(message)
-        return
-
-    # f3colorgame
-    if msg.strip() == "f3colorgame":
-        await colorgame(message)
-        return
-    
-    # f3race
-    if msg.strip() == "f3race":
-        await f3race(message)
-        return
-    
-    await bot.process_commands(message)
-
-# run
-bot.run(TOKEN)
+if __name__ == "__main__":
+    if not TOKEN:
+        print("ERROR: DISCORD_BOT_TOKEN not found in environment.")
+        exit(1)
+    bot.run(TOKEN)

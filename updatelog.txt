@@ -37,3 +37,12 @@ UPDATE 5.0
 --- Other ---
 1. remove ml x up
 2. f3help ui change
+
+UPDATE 6.0
+--- New Features ---
+1. f3case
+--- Other ---
+1. So I finally watched some proper tutorial and discovered
+that my code is absolute garbage. So I rewrite (kinda) the 
+whole thing just to make it better
+2. Added error handling
