@@ -306,7 +306,6 @@ async def gacha(ctx):
         await msg.edit(content=":sparkles: :sparkles: :sparkles: :star2:")
         await asyncio.sleep(0.5)
 
-    # update owned
     if user_id not in bot.owned_characters:
         bot.owned_characters[user_id] = {}
     bot.owned_characters[user_id][character] = bot.owned_characters[user_id].get(character, 0) + 1
@@ -514,3 +513,4 @@ if __name__ == "__main__":
         print("ERROR: DISCORD_BOT_TOKEN not found in environment.")
         exit(1)
     bot.run(TOKEN)
+
